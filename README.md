@@ -1,9 +1,25 @@
 # Introduction to Retrieval Augmented Generation
 
-This repository will introduce you to Retrieval Augmented Generation (RAG) with
-easy to use examples that you can build upon. The examples use Python with
-Jupyter Notebooks and CSV files. The vector database uses the Qdrant database
-which can run in-memory.
+A hands-on RAG lab from Coursera's ["Introduction to Retrieval Augmented
+Generation"](https://www.coursera.org/learn/introduction-to-rag) course
+(template: [alfredodeza/learn-retrieval-augmented-generation](https://github.com/alfredodeza/learn-retrieval-augmented-generation)),
+completed and run end-to-end: real embeddings, a real in-memory Qdrant index
+over 700 wine reviews, and a real semantic search — "Suggest me an amazing
+Malbec wine from Argentina" correctly surfaces a 98-point Argentine Malbec
+(Catena Zapata, Argentino Vineyard 2004) from the dataset, purely from vector
+similarity, no keyword matching.
+
+Two fixes were needed to get the original template running on a current
+stack: `qdrant-client`'s `.search()` was removed in favor of `.query_points()`
+(patched in [the applied-RAG notebook](./examples/3-applied-rag/embeddings.ipynb)),
+and the pinned `pandas==1.3.5` no longer builds on Python 3.12 (unpinned in
+`requirements.txt`). The final cell — feeding the retrieved wines to a local
+LLM via Llamafile or an OpenAI-compatible endpoint — needs that endpoint
+running locally to execute; the retrieval half above is what's actually
+verified in this repo.
+
+The examples use Python with Jupyter Notebooks and CSV files. The vector
+database uses the Qdrant database which can run in-memory.
 
 ## Setup your environment
 
