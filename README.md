@@ -63,8 +63,9 @@ What it shows:
   queries can still share words with relevant documents ("Willamette" for an
   Oregon label). Labels are only as good as the metadata: a Shiraz whose name
   doesn't say Shiraz counts as not relevant, and the Portugal label includes
-  Madeira. `variety` is coarse (Red/White/Sparkling/Collectible), so it is used
-  only together with another filter. Some label sets are queried twice, once
+  Madeira. `variety` is coarse (Red/White/Sparkling/Collectible): Red and White
+  are only used together with another filter, and Sparkling & Champagne (35
+  rows) is the one label used on its own. Some label sets are queried twice, once
   literally and once as a paraphrase, so those queries are not independent,
   and the intervals are somewhat narrower than they should be.
 - **Metrics.** recall@k is capped: hits in the top k divided by
