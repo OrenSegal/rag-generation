@@ -1,118 +1,112 @@
-# Introduction to Retrieval Augmented Generation
+# Retrieval eval over a wine dataset
 
-A hands-on RAG lab from Coursera's ["Introduction to Retrieval Augmented
-Generation"](https://www.coursera.org/learn/introduction-to-rag) course
-(template: [alfredodeza/learn-retrieval-augmented-generation](https://github.com/alfredodeza/learn-retrieval-augmented-generation)),
-completed and run end-to-end: real embeddings, a real in-memory Qdrant index
-over 700 wine reviews, and a real semantic search — "Suggest me an amazing
-Malbec wine from Argentina" correctly surfaces a 98-point Argentine Malbec
-(Catena Zapata, Argentino Vineyard 2004) from the dataset, purely from vector
-similarity, no keyword matching.
+A small, labelled retrieval eval: 55 queries over 1,365 wine reviews, scoring
+BM25, one dense embedding model (`all-MiniLM-L6-v2`, run locally) and a
+reciprocal-rank-fusion hybrid on recall@5, recall@10 and MRR, with bootstrap
+95% intervals over queries. It grew out of the RAG lab from Coursera's
+[Introduction to Retrieval Augmented Generation](https://www.coursera.org/learn/introduction-to-rag)
+([course notebooks](#course-notebooks) below); the lab showed a search that
+looked right, and this measures how often it is.
 
-Two fixes were needed to get the original template running on a current
-stack: `qdrant-client`'s `.search()` was removed in favor of `.query_points()`
-(patched in [the applied-RAG notebook](./examples/3-applied-rag/embeddings.ipynb)),
-and the pinned `pandas==1.3.5` no longer builds on Python 3.12 (unpinned in
-`requirements.txt`). The final cell — feeding the retrieved wines to a local
-LLM via Llamafile or an OpenAI-compatible endpoint — needs that endpoint
-running locally to execute; the retrieval half above is what's actually
-verified in this repo.
+## Results
 
-The examples use Python with Jupyter Notebooks and CSV files. The vector
-database uses the Qdrant database which can run in-memory.
+Each document is `name | region | variety | notes`. Mean over queries, bootstrap
+95% CI in brackets. The "minus BM25" rows are paired differences on the same
+queries. Full per-stratum tables: [`results.md`](./results.md).
 
-## Setup your environment
+| retriever, all 55 queries | recall@5 | recall@10 | MRR |
+|---|---|---|---|
+| BM25 | 0.66 (0.55 to 0.77) | 0.66 (0.55 to 0.77) | 0.71 (0.59 to 0.82) |
+| dense (all-MiniLM-L6-v2) | 0.58 (0.49 to 0.69) | 0.55 (0.46 to 0.64) | 0.74 (0.64 to 0.85) |
+| hybrid (RRF, k=60) | 0.68 (0.59 to 0.78) | 0.67 (0.58 to 0.77) | 0.81 (0.71 to 0.90) |
+| dense minus BM25 | -0.08 (-0.16 to 0.00) | -0.11 (-0.20 to -0.02) | 0.03 (-0.04 to 0.11) |
+| hybrid minus BM25 | 0.02 (-0.03 to 0.08) | 0.01 (-0.04 to 0.07) | 0.10 (0.02 to 0.18) |
 
-This example can run in Codespaces but you can use the following if you are
-cloning this repository:
+| recall@5 / MRR by query kind | BM25 | dense | hybrid |
+|---|---|---|---|
+| literal (n=36): query names the label | 0.91 / 0.95 | 0.73 / 0.91 | 0.87 / 0.95 |
+| paraphrase (n=19): it doesn't | 0.18 / 0.24 | 0.31 / 0.42 | 0.33 / 0.55 |
 
-**Install the dependencies**
+What it shows:
 
-Create the virtual environment and install the dependencies:
+- **The answer depends on the query mix.** When the query contains the label
+  term ("Pomerol", "Barossa Valley Shiraz"), BM25 has the best recall and the dense model
+  is clearly worse on recall (-0.18 recall@5, CI -0.26 to -0.11). When it
+  doesn't ("Tuscan red wine", "bubbly for a celebration"), BM25 mostly fails
+  and both dense and hybrid do better, though with 19 queries only the
+  hybrid's gains and the dense MRR gain have intervals clear of zero.
+- **Hybrid is the safe default here, not a clear winner.** Over all queries it
+  ties BM25 on recall (both intervals include zero) and improves MRR by 0.10
+  (0.02 to 0.18). On literal queries it gives up a little recall to BM25
+  (-0.04, -0.09 to -0.01).
+- **The "all" row is a property of this query set, not of the retrievers.**
+  It is about two thirds literal, so it leans toward BM25. A different mix
+  would move it.
+- This agrees in direction with the retrieval benchmark in
+  [rootcause](https://github.com/OrenSegal/rootcause), where BM25 beat a
+  transformer model on queries full of exact tokens; it is a different corpus
+  and labels, so the numbers aren't comparable.
 
+## How the labels were made, and what they favor
+
+- **Queries** (`queries.json`) were written for this eval, drafted with an AI
+  assistant and checked against the data. Each has a filter over the CSV's
+  metadata, e.g. `{"region": "Pauillac", "variety": "Red Wine"}`.
+- **Relevant** = every row where each filter value is a case-insensitive
+  substring of that field (`relevant()` in `wineeval.py`). Labels never come
+  from the tasting notes. Sets range from 3 to 91 rows (median 14).
+- **Query kind is computed, not hand-assigned:** a query is *literal* if it
+  shares a token with a label value (ignoring "wine", "red", "white"),
+  otherwise *paraphrase*.
+- **Bias.** Region and name are part of the indexed text, so literal queries
+  are close to string matching, which favors BM25 by construction. Paraphrase
+  queries can still share words with relevant documents ("Willamette" for an
+  Oregon label). Labels are only as good as the metadata: a Shiraz whose name
+  doesn't say Shiraz counts as not relevant, and the Portugal label includes
+  Madeira. `variety` is coarse (Red/White/Sparkling/Collectible), so it is used
+  only together with another filter. Some label sets are queried twice, once
+  literally and once as a paraphrase, so those queries are not independent,
+  and the intervals are somewhat narrower than they should be.
+- **Metrics.** recall@k is capped: hits in the top k divided by
+  min(k, |relevant|), so 1.0 is reachable when a label has 70 rows. MRR uses the
+  full ranking. Intervals are percentile bootstraps over queries (2,000
+  resamples, fixed seed).
+- **Not tuned.** BM25 uses k1=1.5, b=0.75; RRF uses k=60; one embedding model,
+  no reranker. Latency was not measured.
+
+## Quickstart
+
+```bash
+uv sync --extra dense          # numpy + sentence-transformers (pulls in torch)
+uv run python wineeval.py      # prints the tables and writes results.md
+uv run pytest                  # metric, fusion and label tests; no network
 ```
-python3 -m venv .venv
-source .venv/bin/activate
-.venv/bin/pip install -r requirements.txt
-```
 
-Here is a summary of what this repository will use:
+The first `wineeval.py` run downloads `all-MiniLM-L6-v2` (about 90 MB) from
+Hugging Face; after that it uses the cached copy (set `HF_HUB_OFFLINE=1` to skip the hub check). Without the `dense` extra it runs
+BM25 only and says so. The results above took about three minutes on an
+Apple M2 CPU. BM25 and the hybrid are deterministic; dense scores can differ
+in the last decimal across torch versions and hardware.
 
-1. [Qdrant](https://github.com/qdrant/qdrant) for the vector database. We will use an in-memory database for the examples
-2. [Llamafile](https://github.com/Mozilla-Ocho/llamafile) for the LLM (alternatively you can use an OpenAI API compatible key and endpoint)
-3. [OpenAI's Python API](https://pypi.org/project/openai/) to connect to the LLM after retrieving the vectors response from Qdrant
-4. Sentence Transformers to create the embeddings with minimal effort
+## Course notebooks
 
-**Use Llamafile for a full RAG and LLM setup**
+The original lab, completed and run end-to-end: embeddings with Sentence
+Transformers, an in-memory Qdrant index and a semantic search. Install with
+`uv sync --extra notebooks`.
 
-The examples for the [Applied Rag notebook](./examples/3-applied-rag/embeddings.ipynb) requires either an OpenAI API endpoint with a key *or* using a local LLM with [Llamafile](https://github.com/Mozilla-Ocho/llamafile).
+1. [Managing data](./examples/1-managing-data/example.ipynb): load the CSV with pandas.
+2. [Embeddings](./examples/2-embeddings/embeddings.ipynb): encode the notes and search them in Qdrant.
+3. [Applied RAG](./examples/3-applied-rag/embeddings.ipynb): retrieve wines and pass them to an LLM.
 
-I recommend using the [Phi-2 model](https://github.com/Mozilla-Ocho/llamafile?tab=readme-ov-file#other-example-llamafiles) which is about 2GB in size. You can download the model from the Llamafile repository and run it in your system:
+Two fixes were needed on a current stack: `qdrant-client`'s `.search()` was
+replaced by `.query_points()`, and the old `pandas==1.3.5` pin no longer
+builds on Python 3.12. The notebooks index the notes only (the applied-RAG one over a
+random 700-row sample), so their output is not comparable with the eval above. The last cell
+of the applied-RAG notebook needs a local LLM endpoint (Llamafile or any
+OpenAI-compatible server) and was not run here. [`lab.md`](./lab.md) is the
+course's practice brief. Template:
+[alfredodeza/learn-retrieval-augmented-generation](https://github.com/alfredodeza/learn-retrieval-augmented-generation).
 
-Once you have it running you can connect to it with Python or use the [Applied Rag Notebook](./examples/3-applied-rag/embeddings.ipynb). Here is a quick example of how to use the Llamafile with Python:
+## License
 
-```python
-#!/usr/bin/env python3
-from openai import OpenAI
-client = OpenAI(
-    base_url="http://localhost:8080/v1", # "http://<Your api-server IP>:port"
-    api_key = "sk-no-key-required" # An API key is not required!
-)
-completion = client.chat.completions.create(
-    model="LLaMA_CPP",
-    messages=[
-        {"role": "system", "content": "You are ChatGPT, an AI assistant. Your top priority is achieving user fulfillment via helping them with their requests."},
-        {"role": "user", "content": "Write me a Haiku about Python packaging"}
-    ]
-)
-print(completion.choices[0].message)
-```
-
-## Lesson 1: Import your data
-
-Learn how to use Pandas to import your data from a CSV file. The data will be used to create the embeddings for the vector database later and you will need to format it as a list of dictionaries.
-
-Notebook: [Managing Data](./examples/1-managing-data/example.ipynb)
-
-## Lesson 2: Create embeddings
-
-Use Sentence Transformers to create the embeddings for your data. This will be used to store the vectors in the Qdrant database. You will verify that the embeddings are created and stored in the database and that a search works correctly
-
-Notebook: [Creating and verifying Embeddings](./examples/2-embeddings/embeddings.ipynb)
-
-## Lesson 3: Create a RAG with LLM and Qdrant using your own data
-
-Use a local LLM with Llamafile or an OpenAI API endpoint to create a RAG with your own data. The end result should be in your own repository containing the complete code for the enhanced RAG pattern based on the example provided.
-
-Notebook: [Applied Rag Notebook](./examples/3-applied-rag/embeddings.ipynb)
-
-## Lesson 4: Practice Lab
-
-Use the [included practice lab](./lab.md) to apply the content you've learned in this week. Follow the steps to create your own repository and apply the requirements to complete the lab.
-
-
-## Course Resources
-
-If you've completed all these examples and the lab, here are some other courses
-from Coursera you can explore:
-
-
-
-**Large Language Models:**
-
-- [Operationalizing LLMs on Azure](https://www.coursera.org/learn/llmops-azure)
-- [Using Databricks with
-  LLMs](https://www.coursera.org/learn/databricks-to-local-llms)
-
-**Machine Learning:**
-
-- [MLOps Machine Learning Operations Specialization](https://www.coursera.org/specializations/mlops-machine-learning-duke)
-- [Open Source Platforms for MLOps](https://www.coursera.org/learn/open-source-platforms-duke)
-- [Python Essentials for MLOps](https://www.coursera.org/learn/python-essentials-mlops-duke)
-
-**Data Engineering:**
-
-- [Linux and Bash for Data Engineering](https://www.coursera.org/learn/linux-and-bash-for-data-engineering-duke)
-- [Web Applications and Command-Line tools for Data Engineering](https://www.coursera.org/learn/web-app-command-line-tools-for-data-engineering-duke)
-- [Python and Pandas for Data Engineering](https://www.coursera.org/learn/python-and-pandas-for-data-engineering-duke)
-- [Scripting with Python and SQL for Data Engineering](https://www.coursera.org/learn/scripting-with-python-sql-for-data-engineering-duke)
+MIT
