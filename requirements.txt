@@ -1,6 +1,0 @@
-pandas>=2.0
-ipykernel
-ipywidgets
-qdrant-client>=1.9
-sentence-transformers>=2.2
-openai>=1.11

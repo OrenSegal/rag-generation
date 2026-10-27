@@ -1,0 +1,20 @@
+[project]
+name = "rag-generation"
+version = "0.1.0"
+description = "Small retrieval eval over a wine dataset: BM25, a dense embedding model and an RRF hybrid"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = ["numpy>=1.26"]
+
+[project.optional-dependencies]
+dense = ["sentence-transformers>=3.0"]
+notebooks = ["pandas>=2.0", "ipykernel", "ipywidgets", "qdrant-client>=1.9", "sentence-transformers>=3.0", "openai>=1.11"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
