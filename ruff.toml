@@ -1,0 +1,7 @@
+target-version = "py311"
+line-length = 140
+extend-exclude = ["examples"]  # course notebooks, kept as the course wrote them
+
+[lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = ["B905"]  # zips here pair lists built from the same queries; lengths always match
