@@ -58,3 +58,16 @@ def test_every_query_in_the_real_set_has_labels():
     corpus = w.load_corpus()
     assert 40 <= len(qs) <= 60
     assert all(w.relevant(corpus, q["filters"]) for q in qs)
+
+
+def test_bm25_reproduces_the_published_row():
+    # BM25 is deterministic and needs no model, so the README/results.md BM25 numbers can be checked in CI
+    import json
+    corpus = w.load_corpus()
+    qs = json.loads((w.ROOT / "queries.json").read_text())
+    bm = w.BM25([w.doc_text(r) for r in corpus])
+    runs = [w.rank(bm.scores(q["q"])) for q in qs]
+    rels = [w.relevant(corpus, q["filters"]) for q in qs]
+    got = {m: round(sum(f(r, rel) for r, rel in zip(runs, rels)) / len(qs), 2) for m, f in w.METRICS.items()}
+    assert got == {"recall@5": 0.66, "recall@10": 0.66, "MRR": 0.71}
+    assert "| BM25 | 0.66 (0.55 to 0.77) | 0.66 (0.55 to 0.77) | 0.71 (0.59 to 0.82) |" in (w.ROOT / "results.md").read_text()
