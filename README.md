@@ -1,5 +1,9 @@
 # Retrieval eval over a wine dataset
 
+[![test](https://github.com/OrenSegal/rag-generation/actions/workflows/test.yml/badge.svg)](https://github.com/OrenSegal/rag-generation/actions/workflows/test.yml)
+
+Scope: retrieval evaluation only. Nothing is generated.
+
 A small, labelled retrieval eval: 55 queries over 1,365 wine reviews, scoring
 BM25, one dense embedding model (`all-MiniLM-L6-v2`, run locally) and a
 reciprocal-rank-fusion hybrid on recall@5, recall@10 and MRR, with bootstrap
