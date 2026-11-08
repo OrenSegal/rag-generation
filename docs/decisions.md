@@ -68,6 +68,7 @@ were written on 2026-11-07 as the obvious options and why the chosen one fits;
 - **Alternatives.** Pin every row (flaky across machines); pin nothing (README
   could drift silently).
 - **Consequences.** A BM25 or label change that moves the headline fails CI.
-  Dense numbers are verified by rerunning `wineeval.py` (last rerun 2026-11-07:
-  `results.md` reproduced byte for byte on an Apple M2).
+  Dense numbers are not checked by CI. To check them, run `python wineeval.py`
+  and then `git diff --exit-code results.md`; a clean exit means the published
+  tables reproduce on that machine.
 - **Evidence.** e9c971c (PR #5).
