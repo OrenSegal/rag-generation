@@ -79,12 +79,35 @@ What it shows:
 - **Not tuned.** BM25 uses k1=1.5, b=0.75; RRF uses k=60; one embedding model,
   no reranker. Latency was not measured.
 
+## Limitations
+
+- **Small n, wide intervals.** 55 queries over 51 distinct label sets (4 sets
+  are queried twice). The paraphrase stratum has 19 queries; at that size even
+  dense minus BM25 recall@5 of +0.13 has an interval that includes zero
+  (-0.02 to 0.27). "No difference" in this eval means "not detectable at
+  this n", not "equal".
+- **Author-built queries.** I wrote the queries (drafted with an AI assistant)
+  and chose the label filters, knowing the corpus. Nobody else labelled
+  anything, and no query came from real users.
+- **Many intervals, no correction.** The tables show 45 intervals (3 strata,
+  5 rows, 3 metrics) at 95% each, with no multiple-comparison adjustment.
+  Read single intervals that barely clear zero (for example literal hybrid
+  minus BM25 recall@5, -0.09 to -0.01) as weak evidence.
+- **The strata are a post-hoc lens.** The literal/paraphrase rule was written
+  together with the queries, not pre-registered.
+- **What it does not show:** anything about generation or answer quality,
+  latency, other embedding models, rerankers, tuned BM25 or RRF parameters, or
+  any corpus other than these 1,365 reviews.
+
+Design choices and their alternatives are in [`docs/decisions.md`](./docs/decisions.md).
+
 ## Quickstart
 
 ```bash
 uv sync --extra dense          # numpy + sentence-transformers (pulls in torch)
 uv run python wineeval.py      # prints the tables and writes results.md
 uv run pytest                  # metric, fusion and label tests; no network
+uvx ruff@0.9.9 check .         # lint, same as CI
 ```
 
 The first `wineeval.py` run downloads `all-MiniLM-L6-v2` (about 90 MB) from
