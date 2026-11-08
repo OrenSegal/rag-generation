@@ -82,9 +82,10 @@ What it shows:
 ## Limitations
 
 - **Small n, wide intervals.** 55 queries over 51 distinct label sets (4 sets
-  are queried twice). The paraphrase stratum has 19 queries; at that size even
+  are queried twice). The paraphrase stratum has 19 queries; at that size
   dense minus BM25 recall@5 of +0.13 has an interval that includes zero
-  (-0.02 to 0.27). "No difference" in this eval means "not detectable at
+  (-0.02 to 0.27), while hybrid minus BM25 (+0.15, 0.04 to 0.27) clears zero.
+  "No difference" in this eval means "not detectable at
   this n", not "equal".
 - **Author-built queries.** I wrote the queries (drafted with an AI assistant)
   and chose the label filters, knowing the corpus. Nobody else labelled
