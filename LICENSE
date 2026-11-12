@@ -1,3 +1,8 @@
+Scope: this licence covers the files written in this repository (wineeval.py,
+tests/, queries.json, results.md, docs/, README.md). It does not cover
+top_rated_wines.csv, lab.md or examples/, which come from a course template
+that carries no licence. See "Data and provenance" in README.md.
+
 MIT License
 
 Copyright (c) 2026 Oren Segal

@@ -136,6 +136,19 @@ OpenAI-compatible server) and was not run here. [`lab.md`](./lab.md) is the
 course's practice brief. Template:
 [alfredodeza/learn-retrieval-augmented-generation](https://github.com/alfredodeza/learn-retrieval-augmented-generation).
 
+## Data and provenance
+
+`top_rated_wines.csv`, `lab.md` and the notebooks under `examples/` were not
+written here. They come from the course template
+[alfredodeza/learn-retrieval-augmented-generation](https://github.com/alfredodeza/learn-retrieval-augmented-generation),
+which this repository was generated from. That template has no licence file,
+and the CSV does not say where its 1,365 rows (name, region, variety, rating,
+tasting notes) were collected. The notebooks were edited here only to run on a
+current stack (see above). Treat those files as third-party material with no
+stated licence: they are kept so the eval can be rerun, not offered for reuse.
+
 ## License
 
-MIT
+MIT, for what was written in this repository: `wineeval.py`, `tests/`,
+`queries.json`, `results.md`, `docs/` and this README. The MIT grant does not
+cover `top_rated_wines.csv`, `lab.md` or `examples/` (see Data and provenance).
