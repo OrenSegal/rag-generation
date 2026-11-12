@@ -6,7 +6,7 @@ Scope: retrieval evaluation only. Nothing is generated.
 
 A small, labelled retrieval eval: 55 queries over 1,365 wine reviews, scoring
 BM25, one dense embedding model (`all-MiniLM-L6-v2`, run locally) and a
-reciprocal-rank-fusion hybrid on recall@5, recall@10 and MRR, with bootstrap
+reciprocal-rank-fusion hybrid on capped recall@5, capped recall@10 and MRR, with bootstrap
 95% intervals over queries. It grew out of the RAG lab from Coursera's
 [Introduction to Retrieval Augmented Generation](https://www.coursera.org/learn/introduction-to-rag)
 ([course notebooks](#course-notebooks) below); the lab showed a search that
@@ -16,9 +16,11 @@ looked right, and this measures how often it is.
 
 Each document is `name | region | variety | notes`. Mean over queries, bootstrap
 95% CI in brackets. The "minus BM25" rows are paired differences on the same
-queries. Full per-stratum tables: [`results.md`](./results.md).
+queries. Full per-stratum tables: [`results.md`](./results.md). Per-query scores
+for every retriever: [`scores.json`](./scores.json); a test rebuilds
+`results.md` from it, so every interval can be checked without the model.
 
-| retriever, all 55 queries | recall@5 | recall@10 | MRR |
+| retriever, all 55 queries | capped recall@5 | capped recall@10 | MRR |
 |---|---|---|---|
 | BM25 | 0.66 (0.55 to 0.77) | 0.66 (0.55 to 0.77) | 0.71 (0.59 to 0.82) |
 | dense (all-MiniLM-L6-v2) | 0.58 (0.49 to 0.69) | 0.56 (0.47 to 0.65) | 0.74 (0.64 to 0.85) |
@@ -26,19 +28,43 @@ queries. Full per-stratum tables: [`results.md`](./results.md).
 | dense minus BM25 | -0.08 (-0.16 to 0.00) | -0.10 (-0.19 to -0.01) | 0.03 (-0.04 to 0.11) |
 | hybrid minus BM25 | 0.02 (-0.03 to 0.08) | 0.01 (-0.04 to 0.07) | 0.10 (0.02 to 0.18) |
 
-| recall@5 / MRR by query kind | BM25 | dense | hybrid |
+| capped recall@5 / MRR by query kind | BM25 | dense | hybrid |
 |---|---|---|---|
 | literal (n=36): query names the label | 0.91 / 0.95 | 0.73 / 0.91 | 0.87 / 0.95 |
 | paraphrase (n=19): it doesn't | 0.18 / 0.24 | 0.31 / 0.42 | 0.33 / 0.55 |
+
+**capped recall@k** is the number of relevant rows in the top k divided by
+min(k, relevant rows). It is not textbook recall: when a query has at least k
+relevant rows it equals precision@k, which is the case for 51 of the 55
+queries at k=5 and 34 at k=10. That is why a value can fall from k=5 to k=10.
+
+### How much of this is the label fields in the index
+
+Labels are filters on name, region and variety, and those fields are part of
+the indexed text. Two more indexes, all 55 queries (`results.md` has the
+intervals):
+
+| index | BM25 capped recall@5 / MRR | dense | hybrid | hybrid minus BM25, MRR |
+|---|---|---|---|---|
+| full document (the tables above) | 0.66 / 0.71 | 0.58 / 0.74 | 0.68 / 0.81 | 0.10 (0.02 to 0.18) |
+| notes only | 0.31 / 0.47 | 0.27 / 0.51 | 0.28 / 0.50 | 0.03 (-0.04 to 0.10) |
+| metadata only (name, region, variety) | 0.70 / 0.73 | 0.70 / 0.78 | 0.76 / 0.85 | 0.12 (0.05 to 0.20) |
+
+With the label fields removed, every retriever loses about half its score and
+the hybrid's MRR gain over BM25 is no longer distinguishable from zero. With
+only the label fields indexed, every retriever scores at least as well as on
+the full document. So this eval mostly measures matching a query to three
+short metadata fields; the tasting notes add little and, for dense and hybrid,
+cost a few points.
 
 What it shows:
 
 - **The answer depends on the query mix.** When the query contains the label
   term ("Pomerol", "Barossa Valley Shiraz"), BM25 has the best recall and the dense model
-  is clearly worse on recall (-0.18 recall@5, CI -0.26 to -0.11). When it
+  is clearly worse on recall (-0.18 capped recall@5, CI -0.26 to -0.11). When it
   doesn't ("Tuscan red wine", "bubbly for a celebration"), BM25 mostly fails
   and both dense and hybrid do better, though with 19 queries the dense
-  recall@5 gain has an interval that includes zero.
+  capped recall@5 gain has an interval that includes zero.
 - **Hybrid is the safe default here, not a clear winner.** Over all queries it
   ties BM25 on recall (both intervals include zero) and improves MRR by 0.10
   (0.02 to 0.18). On literal queries it gives up a little recall to BM25
@@ -76,7 +102,7 @@ What it shows:
   Priorat inside "Spanish red", Barolo inside the nebbiolo-villages query). Joining every pair of
   queries whose relevant sets share a row leaves 34 independent groups, not
   55, so the intervals are somewhat narrower than they should be.
-- **Metrics.** recall@k is capped: hits in the top k divided by
+- **Metrics.** Capped recall@k: hits in the top k divided by
   min(k, |relevant|), so 1.0 is reachable when a label has 70 rows. MRR uses the
   full ranking. Intervals are percentile bootstraps over queries (2,000
   resamples, fixed seed).
@@ -87,17 +113,17 @@ What it shows:
 
 - **Small n, wide intervals.** 55 queries over 52 distinct label sets (3 sets
   are queried twice), in 34 independent groups. The paraphrase stratum has 19 queries; at that size
-  dense minus BM25 recall@5 of +0.13 has an interval that includes zero
+  dense minus BM25 capped recall@5 of +0.13 has an interval that includes zero
   (-0.02 to 0.27), while hybrid minus BM25 (+0.15, 0.04 to 0.27) clears zero.
   "No difference" in this eval means "not detectable at
   this n", not "equal".
 - **Author-built queries.** I wrote the queries (drafted with an AI assistant)
   and chose the label filters, knowing the corpus. Nobody else labelled
   anything, and no query came from real users.
-- **Many intervals, no correction.** The tables show 45 intervals (3 strata,
-  5 rows, 3 metrics) at 95% each, with no multiple-comparison adjustment.
+- **Many intervals, no correction.** The main tables show 45 intervals (3 strata,
+  5 rows, 3 metrics) and the two extra indexes 30 more, at 95% each, with no multiple-comparison adjustment.
   Read single intervals that barely clear zero (for example literal hybrid
-  minus BM25 recall@5, -0.09 to -0.01) as weak evidence.
+  minus BM25 capped recall@5, -0.09 to -0.01) as weak evidence.
 - **The strata are a post-hoc lens.** The literal/paraphrase rule was written
   together with the queries, not pre-registered.
 - **What it does not show:** anything about generation or answer quality,
@@ -110,7 +136,7 @@ Design choices and their alternatives are in [`docs/decisions.md`](./docs/decisi
 
 ```bash
 uv sync --extra dense          # numpy + sentence-transformers (pulls in torch)
-uv run python wineeval.py      # prints the tables and writes results.md
+uv run python wineeval.py      # prints the tables, writes results.md and scores.json
 uv run pytest                  # metric, fusion and label tests; no network
 uvx ruff@0.9.9 check .         # lint, same as CI
 ```

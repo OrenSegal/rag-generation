@@ -31,6 +31,14 @@ def doc_text(row: dict[str, str]) -> str:
     return f"{row['name']} | {row['region']} | {row['variety']} | {row['notes']}"
 
 
+# Labels are filters on name, region and variety, and doc_text() indexes those fields.
+# These two indexes show how much of each score comes from them.
+ABLATIONS = {
+    "notes only": lambda row: row["notes"],
+    "metadata only (name | region | variety)": lambda row: f"{row['name']} | {row['region']} | {row['variety']}",
+}
+
+
 Filters = dict[str, str | list[str]]
 
 
@@ -131,14 +139,50 @@ def dense_rankings(docs: list[str], queries: list[str]) -> list[list[int]] | Non
     return [rank(D @ q) for q in Q]  # exhaustive cosine, same as an in-memory Qdrant search
 
 
-METRICS = {"recall@5": lambda r, rel: recall_at_k(r, rel, 5),
-           "recall@10": lambda r, rel: recall_at_k(r, rel, 10),
+# "capped recall" and not "recall": for a label with at least k rows it is precision@k
+METRICS = {"capped recall@5": lambda r, rel: recall_at_k(r, rel, 5),
+           "capped recall@10": lambda r, rel: recall_at_k(r, rel, 10),
            "MRR": reciprocal_rank}
 
 
 def fmt(vals: Sequence[float]) -> str:
     lo, hi = bootstrap_ci(vals)
     return f"{np.mean(vals):.2f} ({lo:.2f} to {hi:.2f})"
+
+
+Scores = dict[str, dict[str, list[float]]]
+
+
+def table(title: str, scores: Scores, keep: list[int]) -> list[str]:
+    out = [f"**{title}** (n={len(keep)})", "", "| retriever | " + " | ".join(METRICS) + " |", "|---|---|---|---|"]
+    for name, s in scores.items():
+        out.append(f"| {name} | " + " | ".join(fmt([s[m][i] for i in keep]) for m in METRICS) + " |")
+    for name, s in list(scores.items())[1:]:  # paired difference: same queries, so CIs are tighter
+        out.append(f"| {name} minus BM25 | " + " | ".join(
+            fmt([s[m][i] - scores["BM25"][m][i] for i in keep]) for m in METRICS) + " |")
+    return out + [""]
+
+
+def render(header: str, kinds: list[str], scores: Scores, ablations: dict[str, Scores]) -> str:
+    """The text of results.md, from per-query scores alone (scores.json holds exactly these arguments)."""
+    out = [header, ""]
+    for subset in ["all", "literal", "paraphrase"]:
+        out += table(subset, scores, [i for i, k in enumerate(kinds) if subset == "all" or k == subset])
+    for index, s in ablations.items():
+        out += table(f"all, index = {index}", s, list(range(len(kinds))))
+    return "\n".join(out)
+
+
+def evaluate(docs: list[str], texts: list[str], rels: list[set[int]]) -> tuple[Scores, bool]:
+    """Per-query scores of every retriever over one index, and whether the dense model ran."""
+    bm25 = BM25(docs)
+    runs = {"BM25": [rank(bm25.scores(t)) for t in texts]}
+    dense = dense_rankings(docs, texts)
+    if dense is not None:
+        runs[f"dense ({MODEL})"] = dense
+        runs["hybrid (RRF, k=60)"] = [rrf([b, d]) for b, d in zip(runs["BM25"], dense)]
+    return ({name: {m: [f(r, rel) for r, rel in zip(rs, rels)] for m, f in METRICS.items()}
+             for name, rs in runs.items()}, dense is not None)
 
 
 def main() -> None:
@@ -152,33 +196,24 @@ def main() -> None:
     kinds = [query_kind(q["q"], q["filters"]) for q in qs]
     texts = [q["q"] for q in qs]
 
-    bm25 = BM25(docs)
-    runs = {"BM25": [rank(bm25.scores(t)) for t in texts]}
-    dense = dense_rankings(docs, texts)
-    if dense is None:
+    scores, ran_dense = evaluate(docs, texts, rels)
+    if not ran_dense:
         print("dense: sentence-transformers not installed, not run", file=sys.stderr)
-    else:
-        runs[f"dense ({MODEL})"] = dense
-        runs["hybrid (RRF, k=60)"] = [rrf([b, d]) for b, d in zip(runs["BM25"], dense)]
-
-    scores = {name: {m: [f(r, rel) for r, rel in zip(rs, rels)] for m, f in METRICS.items()}
-              for name, rs in runs.items()}
+    ablations = {name: evaluate([text(r) for r in rows], texts, rels)[0] for name, text in ABLATIONS.items()}
     sizes = sorted(len(r) for r in rels)
-    out = [f"{len(qs)} queries ({kinds.count('literal')} literal, {kinds.count('paraphrase')} paraphrase), "
-           f"{len(docs)} docs, relevant per query min {sizes[0]} / median {sizes[len(sizes) // 2]} / max {sizes[-1]}. "
-           f"{independent_groups(rels)} independent groups of queries once queries whose relevant sets share a row are joined. "
-           "Mean with bootstrap 95% CI over queries.", ""]
-    for subset in ["all", "literal", "paraphrase"]:
-        keep = [i for i, k in enumerate(kinds) if subset == "all" or k == subset]
-        out += [f"**{subset}** (n={len(keep)})", "", "| retriever | recall@5 | recall@10 | MRR |", "|---|---|---|---|"]
-        for name, s in scores.items():
-            out.append(f"| {name} | " + " | ".join(fmt([s[m][i] for i in keep]) for m in METRICS) + " |")
-        for name, s in list(scores.items())[1:]:  # paired difference: same queries, so CIs are tighter
-            out.append(f"| {name} minus BM25 | " + " | ".join(
-                fmt([s[m][i] - scores["BM25"][m][i] for i in keep]) for m in METRICS) + " |")
-        out.append("")
-    (ROOT / "results.md").write_text("\n".join(out))
-    print("\n".join(out))
+    header = (f"{len(qs)} queries ({kinds.count('literal')} literal, {kinds.count('paraphrase')} paraphrase), "
+              f"{len(docs)} docs, relevant per query min {sizes[0]} / median {sizes[len(sizes) // 2]} / max {sizes[-1]}. "
+              f"{independent_groups(rels)} independent groups of queries once queries whose relevant sets share a row are joined. "
+              "Mean with bootstrap 95% CI over queries. "
+              "capped recall@k = relevant rows in the top k / min(k, relevant rows); when a query has at least k relevant rows "
+              f"this is precision@k, which is the case for {sum(n >= 5 for n in sizes)} queries at k=5 "
+              f"and {sum(n >= 10 for n in sizes)} at k=10. MRR uses the full ranking.")
+    if ran_dense:  # a BM25-only run must not overwrite the committed dense scores
+        (ROOT / "scores.json").write_text(json.dumps(
+            {"header": header, "queries": texts, "kinds": kinds, "scores": scores, "ablations": ablations}, indent=1) + "\n")
+    text = render(header, kinds, scores, ablations)
+    (ROOT / "results.md").write_text(text)
+    print(text)
 
 
 if __name__ == "__main__":
