@@ -49,3 +49,28 @@
 | hybrid (RRF, k=60) | 0.76 (0.67 to 0.85) | 0.76 (0.66 to 0.84) | 0.85 (0.76 to 0.94) |
 | dense (all-MiniLM-L6-v2) minus BM25 | 0.00 (-0.09 to 0.10) | -0.01 (-0.09 to 0.08) | 0.05 (-0.03 to 0.14) |
 | hybrid (RRF, k=60) minus BM25 | 0.06 (0.00 to 0.13) | 0.07 (0.02 to 0.12) | 0.12 (0.05 to 0.20) |
+
+**paired differences from BM25, corrected for 18 comparisons**
+
+Sign-flip randomization test (20,000 flips, seed 0), then Holm over all rows. MDE: smallest true difference detectable with 80% power at two-sided 5% (normal approximation).
+
+| queries | comparison | metric | mean difference | p | Holm p | MDE |
+|---|---|---|---|---|---|---|
+| all (n=55) | dense (all-MiniLM-L6-v2) minus BM25 | capped recall@5 | -0.08 | 0.0843 | 0.612 | 0.12 |
+| all (n=55) | dense (all-MiniLM-L6-v2) minus BM25 | capped recall@10 | -0.10 | 0.0354 | 0.403 | 0.13 |
+| all (n=55) | dense (all-MiniLM-L6-v2) minus BM25 | MRR | +0.03 | 0.4068 | 1.000 | 0.11 |
+| all (n=55) | hybrid (RRF, k=60) minus BM25 | capped recall@5 | +0.02 | 0.4015 | 1.000 | 0.08 |
+| all (n=55) | hybrid (RRF, k=60) minus BM25 | capped recall@10 | +0.01 | 0.6043 | 1.000 | 0.08 |
+| all (n=55) | hybrid (RRF, k=60) minus BM25 | MRR | +0.10 | 0.0166 | 0.216 | 0.12 |
+| literal (n=36) | dense (all-MiniLM-L6-v2) minus BM25 | capped recall@5 | -0.18 | 0.0001 | 0.003 | 0.12 |
+| literal (n=36) | dense (all-MiniLM-L6-v2) minus BM25 | capped recall@10 | -0.24 | <0.0001 | 0.001 | 0.13 |
+| literal (n=36) | dense (all-MiniLM-L6-v2) minus BM25 | MRR | -0.04 | 0.4032 | 1.000 | 0.13 |
+| literal (n=36) | hybrid (RRF, k=60) minus BM25 | capped recall@5 | -0.04 | 0.0765 | 0.612 | 0.06 |
+| literal (n=36) | hybrid (RRF, k=60) minus BM25 | capped recall@10 | -0.06 | 0.0395 | 0.403 | 0.07 |
+| literal (n=36) | hybrid (RRF, k=60) minus BM25 | MRR | -0.01 | 0.9373 | 1.000 | 0.09 |
+| paraphrase (n=19) | dense (all-MiniLM-L6-v2) minus BM25 | capped recall@5 | +0.13 | 0.1420 | 0.852 | 0.21 |
+| paraphrase (n=19) | dense (all-MiniLM-L6-v2) minus BM25 | capped recall@10 | +0.16 | 0.0536 | 0.483 | 0.21 |
+| paraphrase (n=19) | dense (all-MiniLM-L6-v2) minus BM25 | MRR | +0.18 | 0.0005 | 0.008 | 0.19 |
+| paraphrase (n=19) | hybrid (RRF, k=60) minus BM25 | capped recall@5 | +0.15 | 0.0336 | 0.403 | 0.17 |
+| paraphrase (n=19) | hybrid (RRF, k=60) minus BM25 | capped recall@10 | +0.15 | 0.0147 | 0.206 | 0.15 |
+| paraphrase (n=19) | hybrid (RRF, k=60) minus BM25 | MRR | +0.30 | 0.0002 | 0.003 | 0.24 |
