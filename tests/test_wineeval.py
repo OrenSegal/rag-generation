@@ -79,7 +79,7 @@ def test_bm25_reproduces_the_published_row():
     runs = [w.rank(bm.scores(q["q"])) for q in qs]
     rels = [w.relevant(corpus, q["filters"]) for q in qs]
     got = {m: round(sum(f(r, rel) for r, rel in zip(runs, rels)) / len(qs), 2) for m, f in w.METRICS.items()}
-    assert got == {"recall@5": 0.66, "recall@10": 0.66, "MRR": 0.71}
+    assert got == {"capped recall@5": 0.66, "capped recall@10": 0.66, "MRR": 0.71}
     assert "| BM25 | 0.66 (0.55 to 0.77) | 0.66 (0.55 to 0.77) | 0.71 (0.59 to 0.82) |" in (w.ROOT / "results.md").read_text()
 
 
@@ -87,11 +87,18 @@ def test_results_md_is_rebuilt_from_the_committed_per_query_scores():
     # every row and interval in results.md, dense and hybrid included, without the model
     import json
     saved = json.loads((w.ROOT / "scores.json").read_text())
-    assert (w.ROOT / "results.md").read_text() == w.render(saved["header"], saved["kinds"], saved["scores"])
+    assert (w.ROOT / "results.md").read_text() == w.render(saved["header"], saved["kinds"], saved["scores"], saved["ablations"])
     qs = json.loads((w.ROOT / "queries.json").read_text())
     assert saved["queries"] == [q["q"] for q in qs]
     assert saved["kinds"] == [w.query_kind(q["q"], q["filters"]) for q in qs]
     assert set(saved["scores"]) == {"BM25", "dense (all-MiniLM-L6-v2)", "hybrid (RRF, k=60)"}
+    assert set(saved["ablations"]) == set(w.ABLATIONS)
+
+
+def test_ablation_indexes_leave_out_what_they_say():
+    row = rows[0]
+    assert row["notes"] not in w.ABLATIONS["metadata only (name | region | variety)"](row)
+    assert row["region"] not in w.ABLATIONS["notes only"](row)
 
 
 def test_committed_bm25_scores_match_a_fresh_bm25_run():
