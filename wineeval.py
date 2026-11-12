@@ -128,6 +128,27 @@ def bootstrap_ci(values: Sequence[float], n: int = 2000, seed: int = 0) -> tuple
     return float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))
 
 
+def sign_flip_p(diffs: Sequence[float], n: int = 20000, seed: int = 0) -> float:
+    """Two-sided paired randomization test of mean(diffs) = 0: flip each query's sign at random."""
+    d = np.asarray(diffs, dtype=float)
+    flips = np.random.default_rng(seed).choice([-1.0, 1.0], (n, len(d)))
+    return float((1 + (np.abs(flips @ d) >= abs(d.sum()) - 1e-12).sum()) / (n + 1))
+
+
+def holm(ps: Sequence[float]) -> list[float]:
+    """Holm step-down adjusted p-values, in the order given."""
+    adjusted, running = [0.0] * len(ps), 0.0
+    for step, i in enumerate(sorted(range(len(ps)), key=lambda i: ps[i])):
+        running = max(running, min(1.0, ps[i] * (len(ps) - step)))
+        adjusted[i] = running
+    return adjusted
+
+
+def mde(diffs: Sequence[float]) -> float:
+    """Smallest true mean difference a paired test detects with 80% power at two-sided 5%, normal approximation."""
+    return float((1.96 + 0.84) * np.std(diffs, ddof=1) / math.sqrt(len(diffs)))
+
+
 def dense_rankings(docs: list[str], queries: list[str]) -> list[list[int]] | None:
     try:
         from sentence_transformers import SentenceTransformer
@@ -170,7 +191,28 @@ def render(header: str, kinds: list[str], scores: Scores, ablations: dict[str, S
         out += table(subset, scores, [i for i, k in enumerate(kinds) if subset == "all" or k == subset])
     for index, s in ablations.items():
         out += table(f"all, index = {index}", s, list(range(len(kinds))))
-    return "\n".join(out)
+    return "\n".join(out + corrected(kinds, scores))
+
+
+def corrected(kinds: list[str], scores: Scores) -> list[str]:
+    """Every 'minus BM25' cell of the three main tables, tested and Holm-adjusted as one family."""
+    cells = []
+    for subset in ["all", "literal", "paraphrase"]:
+        keep = [i for i, k in enumerate(kinds) if subset == "all" or k == subset]
+        for name, s in list(scores.items())[1:]:
+            for m in METRICS:
+                cells.append((subset, name, m, [s[m][i] - scores["BM25"][m][i] for i in keep]))
+    if not cells:
+        return []
+    ps = [sign_flip_p(d) for *_, d in cells]
+    out = [f"**paired differences from BM25, corrected for {len(cells)} comparisons**", "",
+           "Sign-flip randomization test (20,000 flips, seed 0), then Holm over all rows. "
+           "MDE: smallest true difference detectable with 80% power at two-sided 5% (normal approximation).", "",
+           "| queries | comparison | metric | mean difference | p | Holm p | MDE |", "|---|---|---|---|---|---|---|"]
+    for (subset, name, m, d), p, hp in zip(cells, ps, holm(ps)):
+        shown = "<0.0001" if p < 0.0001 else f"{p:.4f}"
+        out.append(f"| {subset} (n={len(d)}) | {name} minus BM25 | {m} | {np.mean(d):+.2f} | {shown} | {hp:.3f} | {mde(d):.2f} |")
+    return out + [""]
 
 
 def evaluate(docs: list[str], texts: list[str], rels: list[set[int]]) -> tuple[Scores, bool]:

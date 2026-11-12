@@ -110,3 +110,18 @@ def test_committed_bm25_scores_match_a_fresh_bm25_run():
     for q, *got in zip(qs, *(saved["scores"]["BM25"][m] for m in w.METRICS)):
         r, rel = w.rank(bm.scores(q["q"])), w.relevant(corpus, q["filters"])
         assert got == [f(r, rel) for f in w.METRICS.values()]
+
+
+def test_holm_adjusts_and_keeps_order():
+    assert w.holm([0.01, 0.04, 0.03]) == pytest.approx([0.03, 0.06, 0.06])
+    assert w.holm([0.5, 0.9]) == [1.0, 1.0]
+
+
+def test_sign_flip_p():
+    assert w.sign_flip_p([0.2] * 12) < 0.001  # all twelve queries move the same way
+    assert w.sign_flip_p([0.2, -0.2] * 6) == pytest.approx(1.0)
+    assert w.sign_flip_p([0.0] * 5) == pytest.approx(1.0)
+
+
+def test_mde_shrinks_with_more_queries():
+    assert w.mde([0.0, 1.0] * 10) > w.mde([0.0, 1.0] * 40)

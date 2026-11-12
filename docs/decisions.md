@@ -57,7 +57,9 @@ were written on 2026-11-07 as the obvious options and why the chosen one fits;
   a paired t-test or Wilcoxon: not recorded.
 - **Consequences.** Tighter, honest intervals for the comparison that matters.
   Queries that reuse a label set are not independent, so the intervals are
-  somewhat too narrow; no multiple-comparison correction is applied.
+  somewhat too narrow. The intervals are unadjusted; the 18 comparisons with
+  BM25 are additionally tested with a sign-flip test and Holm-adjusted in
+  `results.md`.
 - **Evidence.** 57530c9; `main()` in `wineeval.py`.
 
 ## 5. Pin the deterministic part of the published results in a test

@@ -65,10 +65,17 @@ What it shows:
   doesn't ("Tuscan red wine", "bubbly for a celebration"), BM25 mostly fails
   and both dense and hybrid do better, though with 19 queries the dense
   capped recall@5 gain has an interval that includes zero.
-- **Hybrid is the safe default here, not a clear winner.** Over all queries it
-  ties BM25 on recall (both intervals include zero) and improves MRR by 0.10
-  (0.02 to 0.18). On literal queries it gives up a little recall to BM25
-  (-0.04, -0.09 to -0.01).
+- **Hybrid matches BM25 on literal queries and beats it on paraphrases; over
+  all queries it is not a demonstrated winner.** The pooled MRR gain of 0.10
+  (0.02 to 0.18) is one of 18 comparisons with BM25; tested as a family
+  (sign-flip test, Holm) its adjusted p is 0.22, and all of the gain comes
+  from the 19 paraphrase queries (literal: -0.01).
+- **Four differences survive the correction** (Holm p < 0.05): on literal
+  queries dense is worse than BM25 on capped recall@5 (-0.18) and @10 (-0.24);
+  on paraphrase queries dense (+0.18) and hybrid (+0.30) beat BM25 on MRR.
+  Everything else, including every hybrid recall difference, is not
+  established at this n. The full table is at the end of
+  [`results.md`](./results.md).
 - **The "all" row is a property of this query set, not of the retrievers.**
   It is about two thirds literal, so it leans toward BM25. A different mix
   would move it.
@@ -120,10 +127,16 @@ What it shows:
 - **Author-built queries.** I wrote the queries (drafted with an AI assistant)
   and chose the label filters, knowing the corpus. Nobody else labelled
   anything, and no query came from real users.
-- **Many intervals, no correction.** The main tables show 45 intervals (3 strata,
-  5 rows, 3 metrics) and the two extra indexes 30 more, at 95% each, with no multiple-comparison adjustment.
-  Read single intervals that barely clear zero (for example literal hybrid
-  minus BM25 capped recall@5, -0.09 to -0.01) as weak evidence.
+- **Many intervals; the correction covers the comparisons with BM25 only.**
+  The main tables show 45 intervals and the two extra indexes 30 more, each at
+  95% with no adjustment. The 18 "minus BM25" cells of the main tables are
+  also tested as one family with a Holm correction (`results.md`); read any
+  interval that clears zero without surviving it (for example literal hybrid
+  minus BM25 capped recall@5, -0.09 to -0.01, Holm p 0.61) as weak evidence.
+- **What this n can detect.** In the paraphrase stratum (19 queries) the
+  smallest true difference from BM25 detectable with 80% power at two-sided
+  5% is 0.15 to 0.21 on capped recall and 0.19 to 0.24 on MRR, before any
+  correction. Over all 55 queries it is 0.08 to 0.13.
 - **The strata are a post-hoc lens.** The literal/paraphrase rule was written
   together with the queries, not pre-registered.
 - **What it does not show:** anything about generation or answer quality,
