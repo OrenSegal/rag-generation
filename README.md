@@ -16,7 +16,9 @@ looked right, and this measures how often it is.
 
 Each document is `name | region | variety | notes`. Mean over queries, bootstrap
 95% CI in brackets. The "minus BM25" rows are paired differences on the same
-queries. Full per-stratum tables: [`results.md`](./results.md).
+queries. Full per-stratum tables: [`results.md`](./results.md). Per-query scores
+for every retriever: [`scores.json`](./scores.json); a test rebuilds
+`results.md` from it, so every interval can be checked without the model.
 
 | retriever, all 55 queries | recall@5 | recall@10 | MRR |
 |---|---|---|---|
@@ -110,7 +112,7 @@ Design choices and their alternatives are in [`docs/decisions.md`](./docs/decisi
 
 ```bash
 uv sync --extra dense          # numpy + sentence-transformers (pulls in torch)
-uv run python wineeval.py      # prints the tables and writes results.md
+uv run python wineeval.py      # prints the tables, writes results.md and scores.json
 uv run pytest                  # metric, fusion and label tests; no network
 uvx ruff@0.9.9 check .         # lint, same as CI
 ```

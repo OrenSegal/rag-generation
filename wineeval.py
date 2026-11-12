@@ -141,6 +141,21 @@ def fmt(vals: Sequence[float]) -> str:
     return f"{np.mean(vals):.2f} ({lo:.2f} to {hi:.2f})"
 
 
+def render(header: str, kinds: list[str], scores: dict[str, dict[str, list[float]]]) -> str:
+    """The text of results.md, from per-query scores alone (scores.json holds exactly these arguments)."""
+    out = [header, ""]
+    for subset in ["all", "literal", "paraphrase"]:
+        keep = [i for i, k in enumerate(kinds) if subset == "all" or k == subset]
+        out += [f"**{subset}** (n={len(keep)})", "", "| retriever | recall@5 | recall@10 | MRR |", "|---|---|---|---|"]
+        for name, s in scores.items():
+            out.append(f"| {name} | " + " | ".join(fmt([s[m][i] for i in keep]) for m in METRICS) + " |")
+        for name, s in list(scores.items())[1:]:  # paired difference: same queries, so CIs are tighter
+            out.append(f"| {name} minus BM25 | " + " | ".join(
+                fmt([s[m][i] - scores["BM25"][m][i] for i in keep]) for m in METRICS) + " |")
+        out.append("")
+    return "\n".join(out)
+
+
 def main() -> None:
     rows = load_corpus()
     docs = [doc_text(r) for r in rows]
@@ -164,21 +179,16 @@ def main() -> None:
     scores = {name: {m: [f(r, rel) for r, rel in zip(rs, rels)] for m, f in METRICS.items()}
               for name, rs in runs.items()}
     sizes = sorted(len(r) for r in rels)
-    out = [f"{len(qs)} queries ({kinds.count('literal')} literal, {kinds.count('paraphrase')} paraphrase), "
-           f"{len(docs)} docs, relevant per query min {sizes[0]} / median {sizes[len(sizes) // 2]} / max {sizes[-1]}. "
-           f"{independent_groups(rels)} independent groups of queries once queries whose relevant sets share a row are joined. "
-           "Mean with bootstrap 95% CI over queries.", ""]
-    for subset in ["all", "literal", "paraphrase"]:
-        keep = [i for i, k in enumerate(kinds) if subset == "all" or k == subset]
-        out += [f"**{subset}** (n={len(keep)})", "", "| retriever | recall@5 | recall@10 | MRR |", "|---|---|---|---|"]
-        for name, s in scores.items():
-            out.append(f"| {name} | " + " | ".join(fmt([s[m][i] for i in keep]) for m in METRICS) + " |")
-        for name, s in list(scores.items())[1:]:  # paired difference: same queries, so CIs are tighter
-            out.append(f"| {name} minus BM25 | " + " | ".join(
-                fmt([s[m][i] - scores["BM25"][m][i] for i in keep]) for m in METRICS) + " |")
-        out.append("")
-    (ROOT / "results.md").write_text("\n".join(out))
-    print("\n".join(out))
+    header = (f"{len(qs)} queries ({kinds.count('literal')} literal, {kinds.count('paraphrase')} paraphrase), "
+              f"{len(docs)} docs, relevant per query min {sizes[0]} / median {sizes[len(sizes) // 2]} / max {sizes[-1]}. "
+              f"{independent_groups(rels)} independent groups of queries once queries whose relevant sets share a row are joined. "
+              "Mean with bootstrap 95% CI over queries.")
+    if dense is not None:  # a BM25-only run must not overwrite the committed dense scores
+        (ROOT / "scores.json").write_text(json.dumps(
+            {"header": header, "queries": texts, "kinds": kinds, "scores": scores}, indent=1) + "\n")
+    text = render(header, kinds, scores)
+    (ROOT / "results.md").write_text(text)
+    print(text)
 
 
 if __name__ == "__main__":

@@ -68,7 +68,10 @@ were written on 2026-11-07 as the obvious options and why the chosen one fits;
 - **Alternatives.** Pin every row (flaky across machines); pin nothing (README
   could drift silently).
 - **Consequences.** A BM25 or label change that moves the headline fails CI.
-  Dense numbers are not checked by CI. To check them, run `python wineeval.py`
-  and then `git diff --exit-code results.md`; a clean exit means the published
-  tables reproduce on that machine.
+  Since then `scores.json` holds the per-query scores of all three retrievers
+  and a test rebuilds `results.md` from it, so every published mean and
+  interval is checked against committed scores, and the BM25 scores are
+  recomputed. CI still does not run the dense model: whether `scores.json`
+  itself reproduces is checked by running `python wineeval.py` and then
+  `git diff --exit-code results.md scores.json`.
 - **Evidence.** e9c971c (PR #5).

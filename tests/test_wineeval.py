@@ -81,3 +81,25 @@ def test_bm25_reproduces_the_published_row():
     got = {m: round(sum(f(r, rel) for r, rel in zip(runs, rels)) / len(qs), 2) for m, f in w.METRICS.items()}
     assert got == {"recall@5": 0.66, "recall@10": 0.66, "MRR": 0.71}
     assert "| BM25 | 0.66 (0.55 to 0.77) | 0.66 (0.55 to 0.77) | 0.71 (0.59 to 0.82) |" in (w.ROOT / "results.md").read_text()
+
+
+def test_results_md_is_rebuilt_from_the_committed_per_query_scores():
+    # every row and interval in results.md, dense and hybrid included, without the model
+    import json
+    saved = json.loads((w.ROOT / "scores.json").read_text())
+    assert (w.ROOT / "results.md").read_text() == w.render(saved["header"], saved["kinds"], saved["scores"])
+    qs = json.loads((w.ROOT / "queries.json").read_text())
+    assert saved["queries"] == [q["q"] for q in qs]
+    assert saved["kinds"] == [w.query_kind(q["q"], q["filters"]) for q in qs]
+    assert set(saved["scores"]) == {"BM25", "dense (all-MiniLM-L6-v2)", "hybrid (RRF, k=60)"}
+
+
+def test_committed_bm25_scores_match_a_fresh_bm25_run():
+    import json
+    saved = json.loads((w.ROOT / "scores.json").read_text())
+    corpus = w.load_corpus()
+    qs = json.loads((w.ROOT / "queries.json").read_text())
+    bm = w.BM25([w.doc_text(r) for r in corpus])
+    for q, *got in zip(qs, *(saved["scores"]["BM25"][m] for m in w.METRICS)):
+        r, rel = w.rank(bm.scores(q["q"])), w.relevant(corpus, q["filters"])
+        assert got == [f(r, rel) for f in w.METRICS.values()]
