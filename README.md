@@ -21,9 +21,9 @@ queries. Full per-stratum tables: [`results.md`](./results.md).
 | retriever, all 55 queries | recall@5 | recall@10 | MRR |
 |---|---|---|---|
 | BM25 | 0.66 (0.55 to 0.77) | 0.66 (0.55 to 0.77) | 0.71 (0.59 to 0.82) |
-| dense (all-MiniLM-L6-v2) | 0.58 (0.49 to 0.69) | 0.55 (0.46 to 0.64) | 0.74 (0.64 to 0.85) |
+| dense (all-MiniLM-L6-v2) | 0.58 (0.49 to 0.69) | 0.56 (0.47 to 0.65) | 0.74 (0.64 to 0.85) |
 | hybrid (RRF, k=60) | 0.68 (0.59 to 0.78) | 0.67 (0.58 to 0.77) | 0.81 (0.71 to 0.90) |
-| dense minus BM25 | -0.08 (-0.16 to 0.00) | -0.11 (-0.20 to -0.02) | 0.03 (-0.04 to 0.11) |
+| dense minus BM25 | -0.08 (-0.16 to 0.00) | -0.10 (-0.19 to -0.01) | 0.03 (-0.04 to 0.11) |
 | hybrid minus BM25 | 0.02 (-0.03 to 0.08) | 0.01 (-0.04 to 0.07) | 0.10 (0.02 to 0.18) |
 
 | recall@5 / MRR by query kind | BM25 | dense | hybrid |
@@ -37,8 +37,8 @@ What it shows:
   term ("Pomerol", "Barossa Valley Shiraz"), BM25 has the best recall and the dense model
   is clearly worse on recall (-0.18 recall@5, CI -0.26 to -0.11). When it
   doesn't ("Tuscan red wine", "bubbly for a celebration"), BM25 mostly fails
-  and both dense and hybrid do better, though with 19 queries only the
-  hybrid's gains and the dense MRR gain have intervals clear of zero.
+  and both dense and hybrid do better, though with 19 queries the dense
+  recall@5 gain has an interval that includes zero.
 - **Hybrid is the safe default here, not a clear winner.** Over all queries it
   ties BM25 on recall (both intervals include zero) and improves MRR by 0.10
   (0.02 to 0.18). On literal queries it gives up a little recall to BM25
@@ -57,7 +57,8 @@ What it shows:
   assistant and checked against the data. Each has a filter over the CSV's
   metadata, e.g. `{"region": "Pauillac", "variety": "Red Wine"}`.
 - **Relevant** = every row where each filter value is a case-insensitive
-  substring of that field (`relevant()` in `wineeval.py`). Labels never come
+  substring of that field (`relevant()` in `wineeval.py`); a filter value can
+  be a list, which matches any one of its entries. Labels never come
   from the tasting notes. Sets range from 3 to 91 rows (median 14).
 - **Query kind is computed, not hand-assigned:** a query is *literal* if it
   shares a token with a label value (ignoring "wine", "red", "white"),
@@ -66,12 +67,15 @@ What it shows:
   are close to string matching, which favors BM25 by construction. Paraphrase
   queries can still share words with relevant documents ("Willamette" for an
   Oregon label). Labels are only as good as the metadata: a Shiraz whose name
-  doesn't say Shiraz counts as not relevant, and the Portugal label includes
-  Madeira. `variety` is coarse (Red/White/Sparkling/Collectible): Red and White
+  doesn't say Shiraz counts as not relevant (the Grenache label has 10 rows
+  named Grenache; 42 more rows mention Grenache only in their notes and count
+  as not relevant), and the Portugal label includes Madeira. `variety` is coarse (Red/White/Sparkling/Collectible): Red and White
   are only used together with another filter, and Sparkling & Champagne (35
-  rows) is the one label used on its own. Some label sets are queried twice, once
-  literally and once as a paraphrase, so those queries are not independent,
-  and the intervals are somewhat narrower than they should be.
+  rows) is the one label used on its own. Three label sets are queried twice, once
+  literally and once as a paraphrase, and others overlap or nest (Rioja and
+  Priorat inside "Spanish red", Barolo inside the nebbiolo-villages query). Joining every pair of
+  queries whose relevant sets share a row leaves 34 independent groups, not
+  55, so the intervals are somewhat narrower than they should be.
 - **Metrics.** recall@k is capped: hits in the top k divided by
   min(k, |relevant|), so 1.0 is reachable when a label has 70 rows. MRR uses the
   full ranking. Intervals are percentile bootstraps over queries (2,000
@@ -81,8 +85,8 @@ What it shows:
 
 ## Limitations
 
-- **Small n, wide intervals.** 55 queries over 51 distinct label sets (4 sets
-  are queried twice). The paraphrase stratum has 19 queries; at that size
+- **Small n, wide intervals.** 55 queries over 52 distinct label sets (3 sets
+  are queried twice), in 34 independent groups. The paraphrase stratum has 19 queries; at that size
   dense minus BM25 recall@5 of +0.13 has an interval that includes zero
   (-0.02 to 0.27), while hybrid minus BM25 (+0.15, 0.04 to 0.27) clears zero.
   "No difference" in this eval means "not detectable at

@@ -31,15 +31,37 @@ def doc_text(row: dict[str, str]) -> str:
     return f"{row['name']} | {row['region']} | {row['variety']} | {row['notes']}"
 
 
-def relevant(rows: list[dict[str, str]], filters: dict[str, str]) -> set[int]:
-    """Ids of rows where every filter value is a case-insensitive substring of that field."""
+Filters = dict[str, str | list[str]]
+
+
+def alternatives(value: str | list[str]) -> list[str]:
+    return [value] if isinstance(value, str) else value
+
+
+def relevant(rows: list[dict[str, str]], filters: Filters) -> set[int]:
+    """Ids of rows where every filter matches its field: a case-insensitive substring, or any one of a list."""
     return {i for i, r in enumerate(rows)
-            if all(v.lower() in r[k].lower() for k, v in filters.items())}
+            if all(any(v.lower() in r[k].lower() for v in alternatives(vs)) for k, vs in filters.items())}
 
 
-def query_kind(q: str, filters: dict[str, str]) -> str:
+def independent_groups(rels: list[set[int]]) -> int:
+    """Number of groups of queries after joining any two whose relevant sets share a row."""
+    groups: list[set[int]] = []
+    for rel in rels:
+        merged = set(rel)
+        rest = []
+        for g in groups:
+            if g & merged:
+                merged |= g
+            else:
+                rest.append(g)
+        groups = rest + [merged]
+    return len(groups)
+
+
+def query_kind(q: str, filters: Filters) -> str:
     """'literal' if the query shares a non-generic token with a label value, else 'paraphrase'."""
-    label_tokens = {t for v in filters.values() for t in tokenize(v)} - GENERIC
+    label_tokens = {t for vs in filters.values() for v in alternatives(vs) for t in tokenize(v)} - GENERIC
     return "literal" if label_tokens & set(tokenize(q)) else "paraphrase"
 
 
@@ -144,6 +166,7 @@ def main() -> None:
     sizes = sorted(len(r) for r in rels)
     out = [f"{len(qs)} queries ({kinds.count('literal')} literal, {kinds.count('paraphrase')} paraphrase), "
            f"{len(docs)} docs, relevant per query min {sizes[0]} / median {sizes[len(sizes) // 2]} / max {sizes[-1]}. "
+           f"{independent_groups(rels)} independent groups of queries once queries whose relevant sets share a row are joined. "
            "Mean with bootstrap 95% CI over queries.", ""]
     for subset in ["all", "literal", "paraphrase"]:
         keep = [i for i, k in enumerate(kinds) if subset == "all" or k == subset]

@@ -15,6 +15,16 @@ def test_labels_match_all_filters_case_insensitively():
     assert 4 not in w.relevant(rows, {"region": "Argentina"})
 
 
+def test_a_list_filter_matches_any_of_its_values():
+    assert w.relevant(rows, {"region": ["Chile", "Austria"]}) == {2, 4}
+    assert w.relevant(rows, {"region": ["Mendoza", "Chile"], "name": "Malbec"}) == {0, 1}
+    assert w.query_kind("Maipo reds", {"region": ["Mendoza", "Maipo Valley"]}) == "literal"
+
+
+def test_independent_groups_joins_queries_that_share_a_row():
+    assert w.independent_groups([{1, 2}, {3}, {2, 4}, {5}, {4, 5}]) == 2
+
+
 def test_query_kind():
     assert w.query_kind("Malbec from Mendoza", {"region": "Mendoza"}) == "literal"
     assert w.query_kind("Argentinian red", {"region": "Argentina", "variety": "Red Wine"}) == "paraphrase"
