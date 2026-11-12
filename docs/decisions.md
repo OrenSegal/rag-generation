@@ -32,7 +32,7 @@ were written on 2026-11-07 as the obvious options and why the chosen one fits;
   the queries, so the strata are still a post-hoc lens (README, Limitations).
 - **Evidence.** 57530c9; `test_query_kind`.
 
-## 3. recall@k is capped at min(k, |relevant|)
+## 3. recall@k is capped at min(k, |relevant|), and named "capped recall"
 
 - **Context.** Relevant sets range from 3 to 91 rows. Plain recall@5 on a
   91-row label can never exceed 5/91.
@@ -41,7 +41,10 @@ were written on 2026-11-07 as the obvious options and why the chosen one fits;
 - **Alternatives.** Uncapped recall (fails for the reason above); precision@k
   or nDCG: not recorded.
 - **Consequences.** Scores are comparable across label sizes, but they are not
-  the textbook recall, so they are not comparable with numbers elsewhere.
+  the textbook recall, so they are not comparable with numbers elsewhere. For a
+  label with at least k rows the value is precision@k (51 of 55 queries at
+  k=5), so the columns are labelled "capped recall@k" and defined under the
+  table.
 - **Evidence.** 57530c9; `test_recall_is_capped_by_relevant_set_size`.
 
 ## 4. Compare retrievers with paired bootstrap differences
