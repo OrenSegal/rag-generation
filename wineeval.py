@@ -1,6 +1,6 @@
 """Retrieval eval over top_rated_wines.csv: BM25 vs a dense model vs RRF hybrid.
 
-Run: uv run python wineeval.py   (writes results.md)
+Run: uv run python wineeval.py   (prints the tables; writes results.md when the dense model ran)
 """
 import csv
 import json
@@ -134,7 +134,8 @@ def main() -> None:
     runs = {"BM25": [rank(bm25.scores(t)) for t in texts]}
     dense = dense_rankings(docs, texts)
     if dense is None:
-        print("dense: sentence-transformers not installed, not run", file=sys.stderr)
+        print("dense: sentence-transformers not installed, not run; BM25 only, results.md not written",
+              file=sys.stderr)
     else:
         runs[f"dense ({MODEL})"] = dense
         runs["hybrid (RRF, k=60)"] = [rrf([b, d]) for b, d in zip(runs["BM25"], dense)]
@@ -154,8 +155,9 @@ def main() -> None:
             out.append(f"| {name} minus BM25 | " + " | ".join(
                 fmt([s[m][i] - scores["BM25"][m][i] for i in keep]) for m in METRICS) + " |")
         out.append("")
-    (ROOT / "results.md").write_text("\n".join(out))
     print("\n".join(out))
+    if dense is not None:  # a BM25-only run must not replace the published three-retriever tables
+        (ROOT / "results.md").write_text("\n".join(out))
 
 
 if __name__ == "__main__":

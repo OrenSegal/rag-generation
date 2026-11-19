@@ -113,7 +113,7 @@ uvx ruff@0.9.9 check .         # lint, same as CI
 
 The first `wineeval.py` run downloads `all-MiniLM-L6-v2` (about 90 MB) from
 Hugging Face; after that it uses the cached copy (set `HF_HUB_OFFLINE=1` to skip the hub check). Without the `dense` extra it runs
-BM25 only and says so. The results above took about three minutes on an
+BM25 only, says so, and leaves `results.md` untouched. The results above took about three minutes on an
 Apple M2 CPU. BM25 and the hybrid are deterministic; dense scores can differ
 in the last decimal across torch versions and hardware.
 

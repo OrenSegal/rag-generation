@@ -71,3 +71,30 @@ def test_bm25_reproduces_the_published_row():
     got = {m: round(sum(f(r, rel) for r, rel in zip(runs, rels)) / len(qs), 2) for m, f in w.METRICS.items()}
     assert got == {"recall@5": 0.66, "recall@10": 0.66, "MRR": 0.71}
     assert "| BM25 | 0.66 (0.55 to 0.77) | 0.66 (0.55 to 0.77) | 0.71 (0.59 to 0.82) |" in (w.ROOT / "results.md").read_text()
+
+
+def _run_main_in(tmp_path, monkeypatch, dense):
+    import shutil
+    shutil.copy(w.ROOT / "queries.json", tmp_path / "queries.json")
+    monkeypatch.setattr(w, "ROOT", tmp_path)  # load_corpus keeps its default path to the real CSV
+    monkeypatch.setattr(w, "dense_rankings", dense)
+    w.main()
+    return tmp_path / "results.md"
+
+
+def test_bm25_only_run_does_not_overwrite_the_published_results(tmp_path, monkeypatch, capsys):
+    # without the dense extra the run has no dense or hybrid rows; writing it would
+    # replace the published three-retriever tables with a BM25-only file
+    out = _run_main_in(tmp_path, monkeypatch, lambda docs, queries: None)
+    assert not out.exists()
+    printed = capsys.readouterr()
+    assert "| BM25 | 0.66 (0.55 to 0.77)" in printed.out
+    assert "results.md not written" in printed.err
+
+
+def test_full_run_writes_results(tmp_path, monkeypatch):
+    # a stand-in dense ranker (doc id order) is enough to exercise the write path
+    out = _run_main_in(tmp_path, monkeypatch, lambda docs, queries: [list(range(len(docs)))] * len(queries))
+    text = out.read_text()
+    assert "| hybrid (RRF, k=60) minus BM25 |" in text
+    assert text.count("| BM25 |") == 3  # one table per stratum
