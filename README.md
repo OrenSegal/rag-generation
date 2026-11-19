@@ -81,8 +81,9 @@ What it shows:
 
 ## Limitations
 
-- **Small n, wide intervals.** 55 queries over 51 distinct label sets (4 sets
-  are queried twice). The paraphrase stratum has 19 queries; at that size
+- **Small n, wide intervals.** 55 queries over 50 distinct label sets (5 sets
+  are queried twice; one of them, the six Willamette Valley rows, through two
+  different filters). The paraphrase stratum has 19 queries; at that size
   dense minus BM25 recall@5 of +0.13 has an interval that includes zero
   (-0.02 to 0.27), while hybrid minus BM25 (+0.15, 0.04 to 0.27) clears zero.
   "No difference" in this eval means "not detectable at

@@ -98,3 +98,16 @@ def test_full_run_writes_results(tmp_path, monkeypatch):
     text = out.read_text()
     assert "| hybrid (RRF, k=60) minus BM25 |" in text
     assert text.count("| BM25 |") == 3  # one table per stratum
+
+
+def test_readme_states_the_real_number_of_distinct_label_sets():
+    # queries that share a relevant set are not independent, which the README's Limitations quantify
+    import json
+    from collections import Counter
+    corpus = w.load_corpus()
+    qs = json.loads((w.ROOT / "queries.json").read_text())
+    sets = Counter(frozenset(w.relevant(corpus, q["filters"])) for q in qs)
+    twice = sum(1 for c in sets.values() if c == 2)
+    assert max(sets.values()) == 2
+    readme = " ".join((w.ROOT / "README.md").read_text().split())
+    assert f"{len(qs)} queries over {len(sets)} distinct label sets ({twice} sets are queried twice" in readme
